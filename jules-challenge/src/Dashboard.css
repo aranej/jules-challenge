@@ -1,0 +1,238 @@
+/* General Styles & Mobile First */
+body {
+  font-family: 'Arial', sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: #f4f7f6;
+  color: #333;
+}
+
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  padding: 10px;
+  box-sizing: border-box;
+}
+
+.dashboard-header {
+  background-color: #fff;
+  padding: 15px;
+  border-bottom: 1px solid #ddd;
+  margin-bottom: 10px;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.dashboard-header h1 {
+  margin: 0 0 10px 0;
+  font-size: 1.8em;
+  color: #2c3e50;
+  text-align: center;
+}
+
+.status-indicators {
+  display: flex;
+  flex-direction: column;
+  gap: 8px; /* Spacing between status lines */
+  font-size: 0.9em;
+  text-align: center; /* Center status text on mobile */
+  margin-bottom: 10px;
+}
+
+.status-indicators span { /* Individual status line */
+  padding: 4px 8px;
+  border-radius: 4px;
+  background-color: #ecf0f1;
+}
+
+.status-indicators .online { color: #27ae60; }
+.status-indicators .offline { color: #c0392b; }
+.status-indicators .connected { color: #2980b9; }
+.status-indicators .disconnected { color: #e74c3c; }
+
+
+.controls {
+  background-color: #fff;
+  padding: 15px;
+  margin-bottom: 10px;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.controls input[type="text"] {
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 1em;
+  width: 100%; /* Full width on mobile */
+  box-sizing: border-box;
+}
+
+.controls button {
+  padding: 10px 15px;
+  background-color: #3498db;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1em;
+  transition: background-color 0.3s ease;
+}
+
+.controls button:hover {
+  background-color: #2980b9;
+}
+
+.controls button:disabled {
+  background-color: #bdc3c7;
+  cursor: not-allowed;
+}
+
+.error-banner {
+  background-color: #e74c3c;
+  color: white;
+  padding: 10px;
+  margin-bottom: 10px;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.error-banner button {
+  margin-left: 10px;
+  padding: 5px 10px;
+  background-color: #c0392b;
+  color: white;
+  border: 1px solid #f2f2f2;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.chart-container {
+  background-color: #fff;
+  padding: 10px;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  width: 100%; /* Full width on mobile */
+  /* Aspect ratio can be controlled here or by JS for the SVG */
+  overflow-x: auto; /* Allow horizontal scroll if chart is too wide on very small screens */
+}
+
+.chart-container p { /* "No data to display" message */
+  text-align: center;
+  padding: 20px;
+  color: #7f8c8d;
+}
+
+.d3-line-chart-container svg {
+  width: 100%;
+  height: auto; /* Maintain aspect ratio defined by viewBox */
+  max-height: 400px; /* Default max height for mobile */
+}
+
+/* D3 specific styles */
+.d3-line-chart-container .axis path,
+.d3-line-chart-container .axis line {
+  fill: none;
+  stroke: #666;
+  shape-rendering: crispEdges;
+}
+
+.d3-line-chart-container .axis text {
+  font-size: 10px;
+  fill: #333;
+}
+
+.d3-line-chart-container .line-path {
+  fill: none;
+  stroke: #3498db;
+  stroke-width: 2px;
+}
+
+.d3-line-chart-container .dot {
+  /* fill: #3498db; */ /* Handled in component for now */
+  stroke: #fff; /* Optional: for better visibility */
+}
+
+.d3-tooltip { /* Style for the tooltip managed by D3 (if not using the ref'd div approach strictly) */
+  position: absolute;
+  z-index: 10;
+  visibility: hidden;
+  background: rgba(255,255,255,0.95);
+  border: 1px solid #ccc;
+  padding: 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  pointer-events: none; /* Important so it doesn't interfere with mouse events on chart elements */
+}
+
+
+/* Tablet Styles */
+@media (min-width: 768px) {
+  .dashboard {
+    padding: 20px;
+  }
+
+  .dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+  }
+
+  .dashboard-header h1 {
+    font-size: 2em;
+    margin: 0; /* Reset margin */
+    text-align: left;
+  }
+  
+  .status-indicators {
+    flex-direction: column; /* Keep as column, but align differently */
+    align-items: flex-end; /* Align status text to the right */
+    text-align: right;
+    margin-bottom: 0; /* Reset margin */
+    gap: 5px;
+  }
+
+  .controls {
+    flex-direction: row; /* Align input and button in a row */
+    align-items: center;
+  }
+
+  .controls input[type="text"] {
+    width: auto; /* Auto width based on content or flex grow */
+    flex-grow: 1; /* Allow input to take available space */
+    margin-right: 10px; /* Add margin between input and button */
+  }
+  
+  .chart-container {
+    padding: 20px;
+  }
+
+  .d3-line-chart-container svg {
+     max-height: 500px; /* Larger max height for tablets */
+  }
+}
+
+/* Desktop Styles */
+@media (min-width: 1024px) {
+  .dashboard-header h1 {
+    font-size: 2.2em;
+  }
+
+  .d3-line-chart-container svg {
+     max-height: 600px; /* Even larger for desktops */
+  }
+}
+
+/* Larger Desktop Styles */
+@media (min-width: 1200px) {
+  .dashboard {
+    max-width: 1400px; /* Max width for the whole dashboard */
+    margin: 0 auto; /* Center on very large screens */
+  }
+}
