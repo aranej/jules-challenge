@@ -1,0 +1,8 @@
+# Toto je .gitkeep súbor
+
+Tento súbor existuje len preto, aby Git sledoval túto zložku.
+Git normálne ignoruje prázdne adresáre, preto potrebuješ mať aspoň jeden súbor 
+v adresári, aby sa synchronizoval.
+
+Jules zrejme nevedel vytvoriť adresár, pretože sa snažil vytvoriť prázdny 
+adresár bez pridania súboru.
