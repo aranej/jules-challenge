@@ -1,5 +1,7 @@
-// Základný skeleton pre backend
+// Load environment variables from .env file
+require('dotenv').config();
 
+// Základný skeleton pre backend
 const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
@@ -8,7 +10,11 @@ const Redis = require('ioredis');
 const url = require('url'); // Needed for parsing URL query parameters
 
 // --- JWT Authentication ---
-const JWT_SECRET = 'your-super-secret-key-for-jwt'; // Store this securely in production!
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error("FATAL ERROR: JWT_SECRET is not defined. Please set it in your .env file.");
+  process.exit(1); // Exit if critical secret is missing
+}
 let users = []; // In-memory user store (for simplicity)
 
 // Middleware to parse JSON bodies
@@ -18,20 +24,49 @@ app.use(express.json()); // Add this line
 const server = http.createServer(app);
 
 // --- Redis Client Setup ---
-const redisClient = new Redis({
-  // Default connection options (host: '127.0.0.1', port: 6379)
-  // Add error handling for production (e.g., maxRetriesPerRequest)
-});
+let isRedisConnected = false; // Flag to track Redis connection status
+
+// Configure Redis options, allowing REDIS_URL to override defaults
+const redisOptions = {
+  maxRetriesPerRequest: 3,
+  retryStrategy: (times) => {
+    const delay = Math.min(times * 50, 2000); // Exponential backoff up to 2s
+    console.log(`Redis: Retrying connection (attempt ${times}), delay ${delay}ms`);
+    return delay;
+  },
+  // Other default options can go here if needed
+};
+
+// ioredis constructor can take a URL string directly, or an options object.
+// If REDIS_URL is provided, it's used; otherwise, ioredis uses default (localhost:6379) + options.
+const redisConnectionString = process.env.REDIS_URL;
+const redisClient = redisConnectionString ? new Redis(redisConnectionString, redisOptions) : new Redis(redisOptions);
+
 
 redisClient.on('connect', () => {
-  console.log('Connected to Redis');
+  console.log('Redis: Successfully connected/reconnected.');
+  isRedisConnected = true;
 });
 
 redisClient.on('error', (err) => {
-  console.error('Redis connection error:', err);
-  // In a real app, you might want to implement a strategy to handle this,
-  // like serving data from DB only, or attempting to reconnect.
+  console.error('Redis: Connection error:', err.message);
+  // isRedisConnected will be set to false here, or on 'end' if the connection fully drops.
+  // ioredis handles reconnection attempts based on its configuration.
+  // For a persistent error (e.g. server down), this will fire, then 'close' or 'end'.
+  isRedisConnected = false; 
 });
+
+redisClient.on('close', () => {
+  console.log('Redis: Connection closed.');
+  isRedisConnected = false;
+});
+
+redisClient.on('end', () => {
+  // This event is emitted when Redis client gives up reconnecting.
+  console.log('Redis: Connection ended (no more reconnection attempts).');
+  isRedisConnected = false;
+});
+
 
 const wss = new WebSocket.Server({ 
   server,
@@ -144,21 +179,40 @@ const CACHE_EXPIRATION_SECONDS = 60;
 
 app.get('/api/data', authenticateTokenHTTP, async (req, res) => { // Secure this route & make async
   try {
-    const cachedData = await redisClient.get(API_DATA_CACHE_KEY);
-    if (cachedData) {
-      console.log(`User ${req.user.username} serving /api/data from cache`);
-      return res.json(JSON.parse(cachedData));
+    let cachedData = null;
+    if (isRedisConnected) {
+      try {
+        cachedData = await redisClient.get(API_DATA_CACHE_KEY);
+        if (cachedData) {
+          console.log(`User ${req.user.username} serving /api/data from Redis cache`);
+          return res.json(JSON.parse(cachedData));
+        }
+      } catch (redisError) {
+        console.error(`Redis: Error getting data for key ${API_DATA_CACHE_KEY}:`, redisError.message);
+        // isRedisConnected might be set to false by 'error' handler, but this is a specific command failure
+      }
+    } else {
+      console.log('Redis: Unavailable, attempting to serve /api/data from source.');
     }
 
+    // If cache miss or Redis unavailable, serve from source
     console.log(`User ${req.user.username} serving /api/data from source (historicalDataStore)`);
-    // Vrátiť historické dáta from historicalDataStore
-    const sourceData = historicalDataStore; // Using the actual in-memory store
+    const sourceData = historicalDataStore; 
     
-    await redisClient.set(API_DATA_CACHE_KEY, JSON.stringify(sourceData), 'EX', CACHE_EXPIRATION_SECONDS);
+    if (isRedisConnected) {
+      try {
+        await redisClient.set(API_DATA_CACHE_KEY, JSON.stringify(sourceData), 'EX', CACHE_EXPIRATION_SECONDS);
+        console.log(`User ${req.user.username} data for /api/data cached in Redis.`);
+      } catch (redisError) {
+        console.error(`Redis: Error setting data for key ${API_DATA_CACHE_KEY}:`, redisError.message);
+      }
+    } else {
+      console.log('Redis: Unavailable, data for /api/data not cached.');
+    }
     
     res.json(sourceData);
-  } catch (error) {
-    console.error('Error in /api/data handler:', error);
+  } catch (error) { // Catch errors from main logic, not Redis specific ones handled above
+    console.error('Error in /api/data handler:', error.message);
     res.status(500).json({ message: "Internal server error" });
   }
 });
@@ -185,24 +239,26 @@ app.post('/api/config', authenticateTokenHTTP, (req, res) => { // Secure this ro
 
 // WebSocket handler
 wss.on('connection', (ws, req) => { // req is available here
+  console.log("WebSocket: Connection attempt received.");
   const requestUrl = url.parse(req.url, true);
   const token = requestUrl.query.token;
 
   if (!token) {
-    console.log('WS connection rejected: No token provided.');
-    ws.terminate(); // Close connection if no token
+    console.log('WebSocket: No token provided. Terminating connection.');
+    ws.terminate(); 
     return;
   }
 
+  console.log("WebSocket: Token found. Attempting verification.");
   jwt.verify(token, JWT_SECRET, (err, decoded) => {
     if (err) {
-      console.log('WS connection rejected: Invalid token.');
-      ws.terminate(); // Close connection if token is invalid
+      console.log(`WebSocket: Token verification failed. Terminating connection. Error: ${err.message}`);
+      ws.terminate();
       return;
     }
 
     ws.user = decoded; // Store user info on the WebSocket connection object
-    console.log(`Client connected: ${ws.user.username}`);
+    console.log(`WebSocket: Token verified successfully. User: ${decoded.username || decoded.id}`); // Log username or id
     
     ws.on('message', (message) => {
       // console.log('Received:', message); // Comment out for performance under load
@@ -210,8 +266,8 @@ wss.on('connection', (ws, req) => { // req is available here
     });
     
     ws.on('close', () => {
-      console.log(`Client disconnected: ${ws.user ? ws.user.username : 'Unknown'}`);
-      // TODO: Cleanup resources
+      // TODO: Cleanup resources (e.g., remove user from any active subscription lists)
+      console.log(`WebSocket: Connection closed for user ${ws.user ? (ws.user.username || ws.user.id) : 'unauthenticated or pre-auth client'}`);
     });
 
     ws.on('error', (error) => {
@@ -241,9 +297,37 @@ const startServer = async () => {
     // process.exit(1); // Optionally exit if critical services fail
   }
 
-  const PORT = process.env.PORT || 3000;
+  const PORT = process.env.PORT || 3000; // Use environment variable for port
   server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
+
+    // --- Demo Data Generator ---
+    const categories = ['CategoryA', 'CategoryB', 'CategoryC'];
+    const generateDataPoint = () => {
+      return {
+        timestamp: Date.now(),
+        value: Math.random() * 100,
+        category: categories[Math.floor(Math.random() * categories.length)],
+      };
+    };
+
+    // Broadcast data to all authenticated clients every 2 seconds
+    setInterval(() => {
+      const dataPoint = generateDataPoint();
+      // console.log('Broadcasting data point:', dataPoint); // Optional: for server-side logging
+
+      wss.clients.forEach((client) => {
+        // Check if client is authenticated (ws.user is set) and connection is open
+        if (client.user && client.readyState === WebSocket.OPEN) {
+          try {
+            client.send(JSON.stringify(dataPoint));
+          } catch (error) {
+            console.error('Error sending data to client:', error);
+            // Optionally, handle client cleanup if send fails repeatedly
+          }
+        }
+      });
+    }, 2000); // Send data every 2 seconds
   });
 };
 
