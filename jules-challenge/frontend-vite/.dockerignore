@@ -1,0 +1,33 @@
+# Node.js
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs
+dist
+build # Though Vite uses 'dist', 'build' is a common name
+out
+
+# IDE specific
+.vscode/
+.idea/
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+*.env
+
+# Git (if this subdirectory were ever its own repo, good practice)
+# .git
+# .gitignore
+
+# Docker (if Dockerfile were in this dir, which it will be)
+# Dockerfile
+# Dockerfile.*
+
+# Vite cache
+.vite/

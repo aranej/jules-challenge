@@ -1,0 +1,43 @@
+# 1. Base Image
+FROM node:18-alpine
+
+# 2. Working Directory
+WORKDIR /usr/src/app
+
+# 3. Copy package.json and package-lock.json (if available)
+# Copy package-lock.json first if it exists, for more robust builds with `npm ci`
+COPY package-lock.json* ./
+COPY package.json ./
+
+# 4. Install Dependencies
+# Use `npm ci` if package-lock.json is available and you want clean, reproducible installs.
+# Otherwise, `npm install --production` is suitable for production images.
+# If your server.js needs devDependencies (e.g. nodemon for dev, but this is a prod Dockerfile),
+# then remove --production. For this challenge, assuming a production build.
+RUN npm install --production --ignore-scripts
+
+# 5. Copy Application Code
+# Copy the main server file and the src directory where StreamProcessor.js is located.
+COPY server.js .
+COPY src/ ./src/
+# If there are other backend-specific files or directories, copy them here.
+# For example, if you had a 'lib' directory: COPY lib/ ./lib/
+
+# 6. Expose Port
+# The application listens on a port defined by the PORT environment variable,
+# defaulting to 3000 if not set. Dockerfile EXPOSE instruction documents this.
+EXPOSE 3000
+
+# 7. Environment Variables (Optional in Dockerfile, mainly for documentation or defaults)
+# These will typically be supplied by docker-compose.yml or at runtime.
+# ENV PORT=3000
+# ENV JWT_SECRET=your_jwt_secret_from_env_file
+# ENV REDIS_URL=redis://localhost:6379
+
+# 8. Command to run the application
+# This uses the start:backend script from package.json if available and preferred,
+# or directly node server.js.
+# Assuming "start:backend": "node server.js" is in package.json.
+# If not, use: CMD ["node", "server.js"]
+# Since we copied package.json, we can use npm scripts.
+CMD ["npm", "run", "start:backend"]
