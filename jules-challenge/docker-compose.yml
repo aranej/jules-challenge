@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine # Specific alpine version for consistency
+    container_name: jules-redis
+    ports:
+      - "6379:6379" # Expose Redis to host for debugging/external tools if needed
+    volumes:
+      - redis-data:/data # Persist Redis data
+    restart: unless-stopped
+
+  backend:
+    container_name: jules-backend
+    build:
+      context: ./ # Root of jules-challenge
+      dockerfile: Dockerfile.backend
+    env_file:
+      - ./.env # Load variables from .env file at the root
+    environment:
+      # Override REDIS_URL from .env for Docker network communication
+      # The backend service will connect to Redis using the service name 'redis'
+      REDIS_URL: redis://redis:6379 
+      # PORT and JWT_SECRET will be picked up from the .env file
+    ports:
+      # Map the container's port (defined by PORT in .env, defaulting to 3000) to host port 3000
+      # The format is "HOST:CONTAINER"
+      - "${PORT:-3000}:${PORT:-3000}" 
+    depends_on:
+      - redis # Ensures Redis starts before the backend
+    restart: unless-stopped
+    # For development, you might add:
+    # volumes:
+    #   - ./:/usr/src/app # Mount current directory to app directory in container
+    #   - /usr/src/app/node_modules # Anonymous volume to prevent host node_modules from overwriting container's
+
+  frontend:
+    container_name: jules-frontend
+    build:
+      context: ./frontend-vite # Path to frontend Docker context
+      dockerfile: Dockerfile.frontend # Specifies the Dockerfile for the frontend
+    ports:
+      # Map Nginx's port 80 in the container to host port 8080
+      - "8080:80" 
+    depends_on:
+      - backend # Ensures backend is started (though not necessarily "ready") before frontend
+    restart: unless-stopped
+
+volumes:
+  redis-data: # Defines the named volume for Redis data persistence
+    driver: local
